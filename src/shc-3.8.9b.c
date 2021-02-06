@@ -11,21 +11,30 @@
  *    Subject: Shrink this C code for fame and fun
  *    Date: 21 May 1996 10:49:37 -0400
  * And it is licensed also under GPL.
+ *
+ *That's where I got it, now I am going to do some work on it
+ *It will reside here: http://github.com/neurobin/shc
  */
 
 static const char my_name[] = "shc";
-static const char version[] = "Version 3.8.9b";
-static const char subject[] = "Generic Script Compiler";
-static const char cpright[] = "Copyright (c) 1994-2015";
+static const char version[] = "Version 3.9.2";
+static const char subject[] = "Generic Shell Script Compiler";
+static const char cpright[] = "GNU GPL Version 3";
 static const struct { const char * f, * s, * e; }
-	author = { "Francisco", "Rosales", "<frosal@fi.upm.es>" };
+	provider = { "Jahidul", "Hamid", "<jahidulhamid@yahoo.com>" };          
+
+/* 
+static const struct { const char * f, * s, * e; }
+	author = { "Francisco", "Garcia", "<frosal@fi.upm.es>" };
+*/
+/*This is the original author who first came up with this*/
 
 static const char * copying[] = {
 "Copying:",
 "",
 "    This program is free software; you can redistribute it and/or modify",
 "    it under the terms of the GNU General Public License as published by",
-"    the Free Software Foundation; either version 2 of the License, or",
+"    the Free Software Foundation; either version 3 of the License, or",
 "    (at your option) any later version.",
 "",
 "    This program is distributed in the hope that it will be useful,",
@@ -35,9 +44,9 @@ static const char * copying[] = {
 "",
 "    You should have received a copy of the GNU General Public License",
 "    along with this program; if not, write to the Free Software",
-"    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.",
+"    @Neurobin, Dhaka, Bangladesh",
 "",
-"    Report problems and questions to:",
+"    Report problems and questions to:http://github.com/neurobin/shc",
 "",
 0};
 
@@ -47,7 +56,8 @@ static const char * abstract[] = {
 "    This tool generates a stripped binary executable version",
 "    of the script specified at command line.",
 "",
-"    Binary version will be saved with a .x extension.",
+"    Binary version will be saved with a .x extension by default.",
+"    You can specify output file name too with [-o filname] option.",
 "",
 "    You can specify expiration date [-e] too, after which binary will",
 "    refuse to be executed, displaying \"[-m]\" instead.",
@@ -58,7 +68,7 @@ static const char * abstract[] = {
 0};
 
 static const char usage[] = 
-"Usage: shc [-e date] [-m addr] [-i iopt] [-x cmnd] [-l lopt] [-rvDTCAh] -f script";
+"Usage: shc [-e date] [-m addr] [-i iopt] [-x cmnd] [-l lopt] [-o outfile] [-rvDUCABh] -f script";
 
 static const char * help[] = {
 "",
@@ -68,12 +78,14 @@ static const char * help[] = {
 "    -i %s  Inline option for the shell interpreter i.e: -e",
 "    -x %s  eXec command, as a printf format i.e: exec('%s',@ARGV);",
 "    -l %s  Last shell option i.e: --",
+"    -o %s  output filename",
 "    -r     Relax security. Make a redistributable binary",
 "    -v     Verbose compilation",
 "    -D     Switch ON debug exec calls [OFF]",
-"    -T     Allow binary to be traceable [no]",
+"    -U     Make binary untraceable [no]",
 "    -C     Display license and exit",
 "    -A     Display abstract and exit",
+"    -B     Compile for busybox",
 "    -h     Display help and exit",
 "",
 "    Environment variables used:",
@@ -81,7 +93,7 @@ static const char * help[] = {
 "    CC      cc       C compiler command",
 "    CFLAGS  <none>   C compiler flags",
 "",
-"    Please consult the shc(1) man page.",
+"    Please consult the shc man page.",
 "",
 0};
 
@@ -102,8 +114,9 @@ static const char * help[] = {
 #define SIZE 4096
 
 static char * file;
+static char * file2;
 static char   date[21];
-static char * mail = "Please contact your provider";
+static char * mail = "Please contact your provider jahidulhamid@yahoo.com";
 static char   rlax[1];
 static char * shll;
 static char * inlo;
@@ -117,7 +130,10 @@ static const char DEBUGEXEC_line[] =
 static int DEBUGEXEC_flag;
 static const char TRACEABLE_line[] =
 "#define TRACEABLE	%d	/* Define as 1 to enable ptrace the executable */\n";
-static int TRACEABLE_flag;
+static int TRACEABLE_flag=1;
+static const char BUSYBOXON_line[] =
+"#define BUSYBOXON	%d	/* Define as 1 to enable work with busybox */\n";
+static int BUSYBOXON_flag;
 
 static const char * RTC[] = {
 "",
@@ -323,7 +339,8 @@ static const char * RTC[] = {
 "	char * scrpt;",
 "	int ret, i, j;",
 "	char ** varg;",
-"	char * me = argv[0];",
+"	char * me = getenv(\"_\");",
+"	if (me == NULL) { me = argv[0]; }",
 "",
 "	stte_0();",
 "	 key(pswd, pswd_z);",
@@ -375,7 +392,12 @@ static const char * RTC[] = {
 "		}",
 "	}",
 "	j = 0;",
+"#if BUSYBOXON",
+"	varg[j++] = \"busybox\";",
+"	varg[j++] = \"sh\";",
+"#else",
 "	varg[j++] = argv[0];		/* My own name at execution */",
+"#endif",
 "	if (ret && *opts)",
 "		varg[j++] = opts;	/* Options on 1st line of code */",
 "	if (*inlo)",
@@ -415,7 +437,7 @@ static const char * RTC[] = {
 static int parse_an_arg(int argc, char * argv[])
 {
 	extern char * optarg;
-	const char * opts = "e:m:f:i:x:l:rvDTCAh";
+	const char * opts = "e:m:f:i:x:l:o:rvDUCABh";
 	struct tm tmp[1];
 	time_t expdate;
 	int cnt, l;
@@ -461,6 +483,9 @@ static int parse_an_arg(int argc, char * argv[])
 	case 'l':
 		lsto = optarg;
 		break;
+	case 'o':
+		file2 = optarg;
+		break;
 	case 'r':
 		rlax[0]++;
 		break;
@@ -470,21 +495,21 @@ static int parse_an_arg(int argc, char * argv[])
 	case 'D':
 		DEBUGEXEC_flag = 1;
 		break;
-	case 'T':
-		TRACEABLE_flag = 1;
+	case 'U':
+		TRACEABLE_flag = 0;
 		break;
 	case 'C':
 		fprintf(stderr, "%s %s, %s\n", my_name, version, subject);
-		fprintf(stderr, "%s %s %s %s %s\n", my_name, cpright, author.f, author.s, author.e);
+		fprintf(stderr, "%s %s %s %s %s\n", my_name, cpright, provider.f, provider.s, provider.e);
 		fprintf(stderr, "%s ", my_name);
 		for (l = 0; copying[l]; l++)
 			fprintf(stderr, "%s\n", copying[l]);
-		fprintf(stderr, "    %s %s %s\n\n", author.f, author.s, author.e);
+		fprintf(stderr, "    %s %s %s\n\n", provider.f, provider.s, provider.e);
 		exit(0);
 		break;
 	case 'A':
 		fprintf(stderr, "%s %s, %s\n", my_name, version, subject);
-		fprintf(stderr, "%s %s %s %s %s\n", my_name, cpright, author.f, author.s, author.e);
+		fprintf(stderr, "%s %s %s %s %s\n", my_name, cpright, provider.f, provider.s, provider.e);
 		fprintf(stderr, "%s ", my_name);
 		for (l = 0; abstract[l]; l++)
 			fprintf(stderr, "%s\n", abstract[l]);
@@ -492,7 +517,7 @@ static int parse_an_arg(int argc, char * argv[])
 		break;
 	case 'h':
 		fprintf(stderr, "%s %s, %s\n", my_name, version, subject);
-		fprintf(stderr, "%s %s %s %s %s\n", my_name, cpright, author.f, author.s, author.e);
+		fprintf(stderr, "%s %s %s %s %s\n", my_name, cpright, provider.f, provider.s, provider.e);
 		fprintf(stderr, "%s %s\n", my_name, usage);
 		for (l = 0; help[l]; l++)
 			fprintf(stderr, "%s\n", help[l]);
@@ -505,6 +530,9 @@ static int parse_an_arg(int argc, char * argv[])
 			return -1;
 		}
 		return 0;
+	case 'B':
+		BUSYBOXON_flag = 1;
+		break;
 	case ':':
 		fprintf(stderr, "%s parse: Missing parameter\n", my_name);
 		return -1;
@@ -886,7 +914,7 @@ int write_C(char * file, char * argv[])
 	}
 	fprintf(o, "#if 0\n");
 	fprintf(o, "\t%s %s, %s\n", my_name, version, subject);
-	fprintf(o, "\t%s %s %s %s\n\n\t", cpright, author.f, author.s, author.e);
+	fprintf(o, "\t%s %s %s %s\n\n\t", cpright, provider.f, provider.s, provider.e);
 	for (indx = 0; argv[indx]; indx++)
 		fprintf(o, "%s ", argv[indx]);
 	fprintf(o, "\n#endif\n\n");
@@ -919,6 +947,7 @@ int write_C(char * file, char * argv[])
 	fprintf(o, "#define      %s_z	%d\n", "hide", 1<<12);
 	fprintf(o, DEBUGEXEC_line, DEBUGEXEC_flag);
 	fprintf(o, TRACEABLE_line, TRACEABLE_flag);
+    fprintf(o, BUSYBOXON_line, BUSYBOXON_flag);
 	for (indx = 0; RTC[indx]; indx++)
 		fprintf(o, "%s\n", RTC[indx]);
 	fflush(o);
@@ -938,15 +967,22 @@ int make(void)
 	cflags = getenv("CFLAGS");
 	if (!cflags)
 		cflags = "";
-	sprintf(cmd, "%s %s %s.x.c -o %s.x", cc, cflags, file, file);
+
+if(!file2){
+file2=(char*)realloc(file2,strlen(file)+3);
+strcpy(file2,file);
+file2=strcat(file2,".x");
+
+}
+	sprintf(cmd, "%s %s %s.x.c -o %s", cc, cflags, file, file2);
 	if (verbose) fprintf(stderr, "%s: %s\n", my_name, cmd);
 	if (system(cmd))
 		return -1;
-	sprintf(cmd, "strip %s.x", file);
+	sprintf(cmd, "strip %s", file2);
 	if (verbose) fprintf(stderr, "%s: %s\n", my_name, cmd);
 	if (system(cmd))
 		fprintf(stderr, "%s: never mind\n", my_name);
-	sprintf(cmd, "chmod go-r %s.x", file);
+	sprintf(cmd, "chmod ug=rwx,o=rx %s", file2);
 	if (verbose) fprintf(stderr, "%s: %s\n", my_name, cmd);
 	if (system(cmd))
 		fprintf(stderr, "%s: remove read permission\n", my_name);
@@ -978,4 +1014,3 @@ int main(int argc, char * argv[])
 	exit(1);
 	return 1;
 }
-
