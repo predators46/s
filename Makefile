@@ -19,7 +19,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=shc
-PKG_VERSION:=3.8.9b - for openwrt fixed
+PKG_VERSION:=3.8.9b
 PKG_MAINTAINER:=Bandung, ONIVERSAL <friyadhibiermann>, indonesian
 
 # # directory in your OpenWrt SDK directory
